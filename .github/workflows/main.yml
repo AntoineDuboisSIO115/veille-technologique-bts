@@ -1,0 +1,26 @@
+name: Mon Robot de Veille
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # Se lance tous les jours à 9h00 UTC (10h ou 11h en France)
+  workflow_dispatch:   # Ce bouton permet de lancer le robot manuellement
+
+jobs:
+  execution_veille:
+    runs-on: ubuntu-latest # On utilise un ordinateur sous Linux
+    steps:
+      - name: Récupérer mon code
+        uses: actions/checkout@v3
+
+      - name: Installer Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Installer les outils (Requirements)
+        run: pip install -r requirements.txt
+
+      - name: Lancer le script de veille
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }} # On récupère ton secret
+        run: python veille.py # Appel du fichier que tu as créé à l'étape 2
