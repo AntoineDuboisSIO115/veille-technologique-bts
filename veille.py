@@ -25,3 +25,9 @@ def executer_veille():
 # Lancement du programme
 if __name__ == "__main__":
     executer_veille()
+def executer_veille():
+    # ... (garde ton code précédent) ...
+    
+    # AJOUTE CECI POUR TESTER LA CONNEXION :
+    print("Envoi d'un test de connexion direct...")
+    envoyer_discord("Test de configuration", "Si vous voyez ce message, le bot est bien connecté !", "Système")
