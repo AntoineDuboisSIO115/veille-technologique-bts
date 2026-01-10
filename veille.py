@@ -1,33 +1,34 @@
-import feedparser # Bibliothèque pour lire les flux RSS [cite: 19]
-import requests   # Bibliothèque pour envoyer des messages [cite: 37]
-import os         # Bibliothèque pour lire les secrets (sécurité)
+import feedparser
+import requests
+import os
 
-# Définition de la fonction d'envoi [cite: 120]
-def envoyer_discord(titre, lien):
-    """Envoie un article sur Discord""" # Docstring [cite: 83]
+def envoyer_discord(titre, lien, source_nom):
+    # On récupère le secret
     webhook_url = os.getenv("DISCORD_WEBHOOK")
-    payload = {"content": f"📢 **News :** {titre}\n{lien}"}
-    requests.post(webhook_url, json=payload)
+    
+    # Debug : on vérifie si le secret est chargé
+    if not webhook_url:
+        print("❌ ERREUR : Le Secret 'DISCORD_WEBHOOK' est vide ou introuvable dans GitHub !")
+        return
 
-# Définition de la fonction principale [cite: 110]
+    payload = {"content": f"✅ **Test de Connexion** : {titre}\n{lien}"}
+    response = requests.post(webhook_url, json=payload)
+    
+    # On affiche le code de réponse (204 = succès chez Discord)
+    print(f"Statut Discord : {response.status_code}")
+
 def executer_veille():
-    # Liste des sources (les ingrédients) 
-    flux_rss = "https://blog.unity.com/feed" 
+    print("--- Démarrage de la vérification ---")
     
-    print("Vérification du flux...")
-    data = feedparser.parse(flux_rss)
+    # TEST FORCE : On envoie un message quoi qu'il arrive
+    envoyer_discord("Test de configuration", "https://github.com", "Système")
     
-    if data.entries:
-        # On prend le premier article (le plus récent)
-        article = data.entries[0]
-        envoyer_discord(article.title, article.link) # Appel de la fonction [cite: 74]
+    # Le reste de ta veille...
+    sources = {"Unity": "https://blog.unity.com/feed"}
+    for nom, url in sources.items():
+        data = feedparser.parse(url)
+        if data.entries:
+            envoyer_discord(data.entries[0].title, data.entries[0].link, nom)
 
-# Lancement du programme
 if __name__ == "__main__":
     executer_veille()
-def executer_veille():
-    # ... (garde ton code précédent) ...
-    
-    # AJOUTE CECI POUR TESTER LA CONNEXION :
-    print("Envoi d'un test de connexion direct...")
-    envoyer_discord("Test de configuration", "Si vous voyez ce message, le bot est bien connecté !", "Système")
