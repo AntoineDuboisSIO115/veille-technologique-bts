@@ -1,53 +1,107 @@
+from datetime import datetime
 import feedparser
-import requests
-import os
 
-# --- FONCTION 1 : ENVOI VERS DISCORD ---
-def envoyer_discord(titre, lien, source_nom):
-    """Envoie un message au Webhook Discord"""
-    webhook_url = os.getenv("DISCORD_WEBHOOK")
-    
-    if not webhook_url:
-        print("❌ ERREUR : Le Secret 'DISCORD_WEBHOOK' est introuvable !")
-        return
+# 1. Liste de tes différents flux RSS de veille
+flux_rss = {
+    "Real Python": "https://realpython.com/atom.xml",
+    "Planet Python": "https://planetpython.org/rss20.xml",
+    # Tu pourras en ajouter d'autres ici facilement !
+}
 
-    payload = {"content": f"✅ **{source_nom}** : {titre}\n{lien}"}
-    response = requests.post(webhook_url, json=payload)
-    # Ce print permet de voir si Discord accepte le message dans les logs [cite: 23]
-    print(f"Statut Discord : {response.status_code}")
+# Mots-clés qui augmentent la pertinence par rapport à ta veille sur l'automatisation et Python
+mots_cles_pertinents = [
+    "automation",
+    "api",
+    "script",
+    "bot",
+    "python",
+    "performance",
+    "ai",
+    "claude",
+    "data",
+    "tool",
+]
 
-# --- FONCTION 2 : FILTRAGE ---
-def est_interessant(titre: str) -> bool:
-    """Vérifie les mots-clés dans le titre [cite: 120]"""
-    mots_cles = ["unity", "unreal", "godot", "engine", "update", "vfx", "devlog"]
-    titre_min = titre.lower()
-    for mot in mots_cles:
-        if mot in titre_min:
-            return True # On retourne une valeur booléenne [cite: 106]
-    return False
+tous_les_articles = []
 
-# --- FONCTION 3 : LOGIQUE PRINCIPALE ---
-def executer_veille():
-    # Ce message nous confirmera que c'est bien la NOUVELLE version qui tourne
-    print("--- Démarrage de la veille technologique ---")
-    
-    # TEST DE CONNEXION : S'affichera sur Discord quoi qu'il arrive
-    envoyer_discord("Robot de Veille Activé", "Le robot vérifie vos sources...", "Système")
+# 2. Récupération et analyse de tous les flux
+for nom_source, url in flux_rss.items():
+  feed = feedparser.parse(url)
+  for entry in feed.entries:
+    titre = entry.title.lower()
+    resume_brut = entry.get("summary", "").lower()
 
-    sources = {
-        "Unity Blog": "https://blog.unity.com/feed",
-        "Godot Engine": "https://godotengine.org/rss.xml",
-        "Unreal Engine": "https://www.unrealengine.com/en-US/rss",
-        "Game Developer": "https://www.gamedeveloper.com/rss.xml"
-    }
+    # Calcul d'un score de pertinence basé sur la présence de tes mots-clés
+    score = 0
+    texte_complet = f"{titre} {resume_brut}"
+    for mot in mots_cles_pertinents:
+      if mot in texte_complet:
+        score += 1
 
-    for nom, url in sources.items():
-        data = feedparser.parse(url)
-        if data.entries:
-            article = data.entries[0]
-            if est_interessant(article.title):
-                envoyer_discord(article.title, article.link, nom)
+    # On stocke l'article avec son score et sa source
+    tous_les_articles.append({
+        "titre": entry.title,
+        "lien": entry.link,
+        "source": nom_source,
+        "resume": entry.get("summary", "Nouvelle ressource indexée."),
+        "score": score,
+    })
 
-if __name__ == "__main__":
-    # Appel de la fonction principale [cite: 74]
-    executer_veille()
+# 3. Tri des articles pour trouver LE plus pertinent de toutes les sources
+tous_les_articles.sort(key=lambda x: x["score"], reverse=True)
+
+# Lecture du HTML existant
+try:
+  with open("veille.html", "r", encoding="utf-8") as f:
+    content = f.read()
+except FileNotFoundError:
+  print("Erreur : Le fichier veille.html est introuvable.")
+  exit()
+
+# On prend le meilleur article qui n'est pas déjà dans le site
+article_gagnant = None
+for art in tous_les_articles:
+  if art["titre"] not in content:
+    article_gagnant = art
+    break
+
+if article_gagnant:
+  titre = article_gagnant["titre"]
+  lien = article_gagnant["lien"]
+  source = article_gagnant["source"]
+  date_str = datetime.now().strftime("%d/%m/%Y")
+
+  # Nettoyage et mise en forme du résumé
+  resume = (
+      article_gagnant["resume"].replace("<p>", "").replace("</p>", "").strip()
+  )
+  if len(resume) > 350:
+    resume = resume[:347] + "..."
+
+  image_src = "image/art1.png"
+
+  # 4. Construction de la ligne HTML
+  nouvelle_ligne = f"""
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem 0.5rem; color: var(--text-muted);">{date_str}</td>
+          <td style="padding: 0.75rem 0.5rem; font-weight: 500;">{titre}<br>
+            <img src="{image_src}" alt="Illustration" style="width: 280px; border-radius: 6px; margin-top: 8px; border: 1px solid var(--border);">
+          </td>
+          <td style="padding: 0.75rem 0.5rem;"><a href="{lien}" target="_blank" style="color: var(--accent); text-decoration: none;">{source}</a></td>
+          <td style="padding: 0.75rem 0.5rem; color: var(--text-muted);">{resume}</td>
+        </tr>"""
+
+  marker = "<!-- INJECT_HERE -->"
+  if marker in content:
+    updated_content = content.replace(marker, f"{marker}\n{nouvelle_ligne}")
+
+    with open("veille.html", "w", encoding="utf-8") as f:
+      f.write(updated_content)
+    print(
+        f"Succès : Le meilleur article de '{source}' a été sélectionné et"
+        " intégré !"
+    )
+  else:
+    print("Erreur : Le repère <!-- INJECT_HERE --> est introuvable.")
+else:
+  print("Aucun nouvel article pertinent trouvé.")
